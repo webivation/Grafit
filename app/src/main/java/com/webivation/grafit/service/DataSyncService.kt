@@ -100,7 +100,7 @@ class DataSyncService : LifecycleService() {
                     consecutiveErrors++
                     Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
-                    if (consecutiveErrors > 5) {
+                    if (consecutiveErrors > MAX_METRIC_COLLECTION_ERRORS) {
                         Log.e(TAG, "Too many consecutive persistence errors, breaking metric collection loop")
                         break
                     }
@@ -177,11 +177,11 @@ class DataSyncService : LifecycleService() {
             while (isActive) {
                 try {
                     val baseInterval = Prefs.get(this@DataSyncService).flushIntervalMs
-                    // Exponential backoff: double the delay on each error, capped at 5 minutes
+                    // Exponential backoff: double the delay on each error, capped at MAX_BACKOFF_DELAY_MS
                     val delayMs = if (consecutiveErrors == 0) {
                         baseInterval
                     } else {
-                        minOf(baseInterval * (1L shl consecutiveErrors), 5 * 60 * 1000L)
+                        minOf(baseInterval * (1L shl consecutiveErrors), MAX_BACKOFF_DELAY_MS)
                     }
                     delay(delayMs)
                     flush()
@@ -190,7 +190,7 @@ class DataSyncService : LifecycleService() {
                     consecutiveErrors++
                     Log.e(TAG, "Flush loop error (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
-                    if (consecutiveErrors > 10) {
+                    if (consecutiveErrors > MAX_FLUSH_ERRORS) {
                         Log.e(TAG, "Too many consecutive flush errors, stopping flush loop")
                         break
                     }
@@ -273,6 +273,9 @@ class DataSyncService : LifecycleService() {
         private const val CHANNEL_ID = "grafit_sync"
         private const val NOTIFICATION_ID = 1001
         private const val FLUSH_BATCH_SIZE = 200
+        private const val MAX_METRIC_COLLECTION_ERRORS = 5
+        private const val MAX_FLUSH_ERRORS = 10
+        private const val MAX_BACKOFF_DELAY_MS = 5 * 60 * 1000L  // 5 minutes
 
         fun start(context: Context) {
             val intent = Intent(context, DataSyncService::class.java)
