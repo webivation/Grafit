@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application
-    private val dao by lazy(LazyThreadSafetyMode.NONE) {
+    private val dao by lazy {
         AppDatabase.getInstance(app).metricDao()
     }
 
