@@ -16,6 +16,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 import android.util.Log
 import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.channels.Channel
@@ -74,7 +75,7 @@ class R02BleManager(
         // Filter by the Nordic UART service UUID that all R02 devices advertise.
         // This is more reliable than device name matching, as names can vary.
         val filter = ScanFilter.Builder()
-            .setServiceUuid(R02Protocol.SERVICE_UUID)
+            .setServiceUuid(ParcelUuid(R02Protocol.SERVICE_UUID))
             .build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
