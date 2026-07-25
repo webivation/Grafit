@@ -43,17 +43,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             var dao: MetricDao? = null
             while (isActive) {
-                val count = runCatching {
+                val count = try {
                     val currentDao = dao ?: AppDatabase.getInstance(application).metricDao().also {
                         dao = it
                     }
                     currentDao.count()
+                } catch (e: Exception) {
+                    dao = null
+                    Log.e(TAG, "Failed to read buffered metric count", e)
+                    0
                 }
-                    .onFailure {
-                        dao = null
-                        Log.e(TAG, "Failed to read buffered metric count", it)
-                    }
-                    .getOrDefault(0)
                 _bufferCount.postValue(count)
                 delay(POLL_INTERVAL_MS)
             }

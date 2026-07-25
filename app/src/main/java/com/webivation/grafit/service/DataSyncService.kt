@@ -187,10 +187,12 @@ class DataSyncService : LifecycleService() {
         if (w.send(timeSeries)) {
             dao.deleteByIds(batch.map { it.id })
             Log.d(TAG, "Flushed ${batch.size} metrics to Grafana Cloud")
-            updateNotification("Streaming – buffer: ${dao.count()} rows")
+            val bufferCount = dao.count()
+            updateNotification("Streaming – buffer: $bufferCount rows")
         } else {
-            Log.w(TAG, "Flush failed – ${dao.count()} metrics buffered")
-            updateNotification("Offline – buffered ${dao.count()} metrics")
+            val bufferCount = dao.count()
+            Log.w(TAG, "Flush failed – $bufferCount metrics buffered")
+            updateNotification("Offline – buffered $bufferCount metrics")
         }
     }
 
