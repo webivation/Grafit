@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) backup/transfer manifest. Explicitly includes the
+  "grafit_prefs" SharedPreferences file (Grafana endpoint/credentials, BLE and
+  sync settings) so they survive both cloud backup+restore and device-to-device
+  transfer, and so they are still included even if defaults or exclusion rules
+  change elsewhere in the future.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="grafit_prefs.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="grafit_prefs.xml" />
+    </device-transfer>
+</data-extraction-rules>

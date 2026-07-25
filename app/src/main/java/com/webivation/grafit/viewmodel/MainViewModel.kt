@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
 import com.webivation.grafit.data.MetricDao
+import com.webivation.grafit.ring.LiveRingMetric
 import com.webivation.grafit.ring.RingMetric
 import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.CancellationException
@@ -34,6 +35,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing buffer monitor", e)
             CrashLogger.logException(getApplication(), e, TAG)
+        }
+        try {
+            observeLiveMetric()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error observing live ring metric", e)
+            CrashLogger.logException(getApplication(), e, TAG)
+        }
+    }
+
+    /** Mirrors [LiveRingMetric], the ring's real-time readings, onto the UI-facing LiveData. */
+    private fun observeLiveMetric() {
+        viewModelScope.launch {
+            LiveRingMetric.latest.collect { metric ->
+                if (metric != null) postLatestMetric(metric)
+            }
         }
     }
 

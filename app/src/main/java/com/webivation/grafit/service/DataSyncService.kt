@@ -18,9 +18,11 @@ import com.webivation.grafit.network.PrometheusLabel
 import com.webivation.grafit.network.PrometheusRemoteWriter
 import com.webivation.grafit.network.PrometheusSample
 import com.webivation.grafit.network.PrometheusTimeSeries
+import com.webivation.grafit.ring.LiveRingMetric
 import com.webivation.grafit.ring.R02BleManager
 import com.webivation.grafit.ring.RingMetric
 import com.webivation.grafit.util.CrashLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -99,9 +101,12 @@ class DataSyncService : LifecycleService() {
         lifecycleScope.launch {
             var consecutiveErrors = 0
             for (metric in bleManager.metricChannel) {
+                LiveRingMetric.update(metric)
                 try {
                     persistMetric(metric)
                     consecutiveErrors = 0
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     consecutiveErrors++
                     Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
@@ -194,6 +199,8 @@ class DataSyncService : LifecycleService() {
                     delay(delayMs)
                     flush()
                     consecutiveErrors = 0
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     consecutiveErrors++
                     Log.e(TAG, "Flush loop error (attempt $consecutiveErrors)", e)

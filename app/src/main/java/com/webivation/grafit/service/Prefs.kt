@@ -1,5 +1,6 @@
 package com.webivation.grafit.service
 
+import android.app.backup.BackupManager
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -129,10 +130,25 @@ class Prefs private constructor(private val sp: SharedPreferences) {
 
         @Volatile private var instance: Prefs? = null
 
+        // Held for the app's lifetime: registerOnSharedPreferenceChangeListener keeps
+        // only a weak reference to its listener, so a local/anonymous one would be GC'd.
+        private var backupListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
         fun get(context: Context): Prefs = instance ?: synchronized(this) {
-            instance ?: Prefs(
-                context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            ).also { instance = it }
+            instance ?: run {
+                val appContext = context.applicationContext
+                val sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                // Any change to these settings - whether via Prefs' own setters or the
+                // Settings screen's PreferenceFragmentCompat writing straight to this
+                // file - should be nudged toward Android's Auto Backup promptly so the
+                // config survives an uninstall/reinstall without waiting on its own schedule.
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+                    BackupManager(appContext).dataChanged()
+                }
+                sp.registerOnSharedPreferenceChangeListener(listener)
+                backupListener = listener
+                Prefs(sp).also { instance = it }
+            }
         }
     }
 }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy Auto Backup manifest for API 26-30 (data_extraction_rules.xml covers
+  API 31+). Keeps only the "grafit_prefs" SharedPreferences file — Grafana
+  endpoint/credentials, BLE and sync settings — so it survives uninstall +
+  reinstall via Google's Auto Backup, without pulling in the Room DB buffer
+  or crash logs.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="grafit_prefs.xml" />
+</full-backup-content>
