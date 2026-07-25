@@ -16,6 +16,18 @@ import java.util.Locale
  * - Falls back to internal storage if external is unavailable
  *
  * On Android 6.0+, external cache doesn't require WRITE_EXTERNAL_STORAGE permission.
+ *
+ * ACCESS VIA TERMUX:
+ * 1. Open Termux and run:
+ *    ls ~/Android/data/com.webivation.grafit/cache/crashes/
+ * 2. View logs:
+ *    cat ~/Android/data/com.webivation.grafit/cache/crashes/crash_YYYY-MM-DD_HH-mm-ss-SSS.log
+ * 3. Or view with logcat:
+ *    adb logcat -s CrashLogger,MainActivity,GrafitApplication
+ *
+ * LOGS WRITTEN BY:
+ * - CrashLogger: Uncaught exceptions (startup crashes)
+ * - CrashLogger.logException(): Manual logging for non-fatal errors
  */
 object CrashLogger {
     private const val TAG = "CrashLogger"
