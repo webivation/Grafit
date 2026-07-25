@@ -64,22 +64,50 @@ class Prefs private constructor(private val sp: SharedPreferences) {
         set(v) = sp.edit { putString(KEY_BUFFER_MAX_ROWS, v.toString()) }
 
     private fun getLongCompat(key: String, default: Long): Long {
-        return when (val value = sp.all[key]) {
-            is Long -> value
-            is Int -> value.toLong()
-            is Number -> value.toLong()
-            is String -> value.toLongOrNull() ?: default
-            else -> default
+        val asString = try {
+            sp.getString(key, null)
+        } catch (_: ClassCastException) {
+            null
+        }
+        if (asString != null) return asString.toLongOrNull() ?: default
+
+        return try {
+            sp.getLong(key, default)
+        } catch (_: ClassCastException) {
+            when (val value = sp.all[key]) {
+                is Long -> value
+                is Int -> value.toLong()
+                is Float -> value.toLong()
+                is Double -> value.toLong()
+                is Short -> value.toLong()
+                is Byte -> value.toLong()
+                is String -> value.toLongOrNull() ?: default
+                else -> default
+            }
         }
     }
 
     private fun getIntCompat(key: String, default: Int): Int {
-        return when (val value = sp.all[key]) {
-            is Int -> value
-            is Long -> value.toInt()
-            is Number -> value.toInt()
-            is String -> value.toIntOrNull() ?: default
-            else -> default
+        val asString = try {
+            sp.getString(key, null)
+        } catch (_: ClassCastException) {
+            null
+        }
+        if (asString != null) return asString.toIntOrNull() ?: default
+
+        return try {
+            sp.getInt(key, default)
+        } catch (_: ClassCastException) {
+            when (val value = sp.all[key]) {
+                is Int -> value
+                is Long -> value.toInt()
+                is Float -> value.toInt()
+                is Double -> value.toInt()
+                is Short -> value.toInt()
+                is Byte -> value.toInt()
+                is String -> value.toIntOrNull() ?: default
+                else -> default
+            }
         }
     }
 
