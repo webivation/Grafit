@@ -20,6 +20,7 @@ import com.webivation.grafit.network.PrometheusSample
 import com.webivation.grafit.network.PrometheusTimeSeries
 import com.webivation.grafit.ring.R02BleManager
 import com.webivation.grafit.ring.RingMetric
+import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -96,12 +97,12 @@ class DataSyncService : LifecycleService() {
                         persistMetric(metric)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error persisting metric from ring", e)
-                        com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
+                        CrashLogger.logException(this@DataSyncService, e, TAG)
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "BLE metric collection failed", e)
-                com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
+                CrashLogger.logException(this@DataSyncService, e, TAG)
             }
         }
 
@@ -176,7 +177,7 @@ class DataSyncService : LifecycleService() {
                     flush()
                 } catch (e: Exception) {
                     Log.e(TAG, "Flush loop error", e)
-                    com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
+                    CrashLogger.logException(this@DataSyncService, e, TAG)
                 }
             }
         }

@@ -72,10 +72,10 @@ object CrashLogger {
 
     /**
      * Get the location where crash logs are stored. Typically:
-     * /data/data/com.webivation.grafit/app_crashes/
+     * /data/data/com.webivation.grafit/files/crashes/
      */
     fun getCrashLogsDir(context: Context): File =
-        File(context.getExternalFilesDir(null), CRASH_DIR)
+        File(context.filesDir, CRASH_DIR)
 
     // -----------------------------------------------------------------------
     // Helpers

@@ -226,6 +226,7 @@ class R02BleManager(
                 pollRing()
             } catch (e: Exception) {
                 Log.e(TAG, "Poll ring error", e)
+                com.webivation.grafit.util.CrashLogger.logException(context, e, TAG)
                 // Don't crash the polling loop - just log and continue
             }
         }
