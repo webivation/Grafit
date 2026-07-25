@@ -35,8 +35,6 @@ import java.util.concurrent.Executors
 @SuppressLint("MissingPermission")
 class R02BleManager(
     private val context: Context,
-    /** Target device name prefix – user-configurable, defaults to "R02". */
-    private val deviceName: String = "R02",
     /** How often (ms) to poll the ring for fresh readings. */
     private val pollIntervalMs: Long = 5_000L
 ) {
@@ -71,9 +69,13 @@ class R02BleManager(
             return
         }
         _connectionState.value = State.SCANNING
-        Log.i(TAG, "Scanning for '$deviceName'…")
+        Log.i(TAG, "Scanning for R02 ring (Nordic UART service)…")
 
-        val filter = ScanFilter.Builder().setDeviceName(deviceName).build()
+        // Filter by the Nordic UART service UUID that all R02 devices advertise.
+        // This is more reliable than device name matching, as names can vary.
+        val filter = ScanFilter.Builder()
+            .setServiceUuid(R02Protocol.SERVICE_UUID)
+            .build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .build()
@@ -82,7 +84,7 @@ class R02BleManager(
         // Safety timeout: stop scanning after 30 s if nothing found
         handler.postDelayed({
             if (_connectionState.value == State.SCANNING) {
-                Log.w(TAG, "Scan timeout – no '$deviceName' found")
+                Log.w(TAG, "Scan timeout – no R02 ring found")
                 scanner.stopScan(scanCallback)
                 _connectionState.value = State.DISCONNECTED
             }
