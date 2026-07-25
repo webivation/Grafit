@@ -1,11 +1,13 @@
 package com.webivation.grafit.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
+import com.webivation.grafit.data.MetricDao
 import com.webivation.grafit.ring.RingMetric
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -14,13 +16,11 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val dao = AppDatabase.getInstance(application).metricDao()
-
     // Latest ring readings for display
     private val _latestMetric = MutableLiveData<RingMetric>()
     val latestMetric: LiveData<RingMetric> = _latestMetric
 
-    private val _bufferCount = MutableLiveData<Int>()
+    private val _bufferCount = MutableLiveData(0)
     val bufferCount: LiveData<Int> = _bufferCount
 
     private val _isStreaming = MutableLiveData(false)
@@ -41,14 +41,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Polls the DB row-count every [POLL_INTERVAL_MS] so the UI stays current. */
     private fun startBufferMonitor() {
         viewModelScope.launch(Dispatchers.IO) {
+            var dao: MetricDao? = null
             while (isActive) {
-                _bufferCount.postValue(dao.count())
+                val count = runCatching {
+                    val currentDao = dao ?: AppDatabase.getInstance(application).metricDao().also {
+                        dao = it
+                    }
+                    currentDao.count()
+                }
+                    .onFailure {
+                        dao = null
+                        Log.e(TAG, "Failed to read buffered metric count", it)
+                    }
+                    .getOrDefault(0)
+                _bufferCount.postValue(count)
                 delay(POLL_INTERVAL_MS)
             }
         }
     }
 
     companion object {
+        private const val TAG = "MainViewModel"
         private const val POLL_INTERVAL_MS = 5_000L
     }
 }
