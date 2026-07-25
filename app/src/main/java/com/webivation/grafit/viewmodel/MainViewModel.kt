@@ -15,10 +15,6 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val dao by lazy {
-        AppDatabase.getInstance(application).metricDao()
-    }
-
     // Latest ring readings for display
     private val _latestMetric = MutableLiveData<RingMetric>()
     val latestMetric: LiveData<RingMetric> = _latestMetric
@@ -45,7 +41,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startBufferMonitor() {
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                val count = runCatching { dao.count() }
+                val count = runCatching {
+                    AppDatabase.getInstance(application).metricDao().count()
+                }
                     .onFailure { Log.e(TAG, "Failed to read buffered metric count", it) }
                     .getOrDefault(0)
                 _bufferCount.postValue(count)
