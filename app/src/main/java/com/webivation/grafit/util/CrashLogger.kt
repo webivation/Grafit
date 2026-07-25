@@ -1,7 +1,10 @@
 package com.webivation.grafit.util
 
 import android.content.Context
+import android.content.ContentValues
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import java.io.File
 import java.io.FileWriter
@@ -13,6 +16,7 @@ import java.util.Locale
  * Saves crash logs to persistent storage on the device so crashes can be
  * investigated later. Logs are written to:
  * - App-specific external cache (primary): accessible via Termux
+ * - Public Downloads/Grafit (best effort): accessible via Files app
  * - Falls back to internal storage if external is unavailable
  *
  * On Android 6.0+, external cache doesn't require WRITE_EXTERNAL_STORAGE permission.
@@ -32,6 +36,7 @@ import java.util.Locale
 object CrashLogger {
     private const val TAG = "CrashLogger"
     private const val CRASH_DIR = "crashes"
+    private const val DOWNLOADS_SUBDIR = "Grafit"
     private const val MAX_CRASH_FILES = 10
     private const val TIMESTAMP_FORMAT = "yyyy-MM-dd_HH-mm-ss-SSS"
 
@@ -89,27 +94,25 @@ object CrashLogger {
             val logsDir = getCrashLogsDir(context)
             if (!logsDir.exists() && !logsDir.mkdirs()) {
                 Log.w(TAG, "Failed to create crash logs directory")
-                return
             }
 
             val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
             val filename = "exception_${timestamp}.log"
-            val file = File(logsDir, filename)
-
-            try {
-                FileWriter(file).use { writer ->
-                    writer.append("Timestamp: $timestamp\n")
-                    writer.append("Tag: ${tag ?: "N/A"}\n")
-                    writer.append("Exception: ${exception::class.simpleName}\n")
-                    writer.append("Message: ${exception.message}\n")
-                    writer.append("\nStack Trace:\n")
-                    writer.append(exception.stackTraceToString())
-                }
-                Log.e(TAG, "Logged exception to $filename")
-                trimOldCrashLogs(logsDir)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to write exception log", e)
+            val content = buildString {
+                append("Timestamp: $timestamp\n")
+                append("Tag: ${tag ?: "N/A"}\n")
+                append("Exception: ${exception::class.simpleName}\n")
+                append("Message: ${exception.message}\n")
+                append("\nStack Trace:\n")
+                append(exception.stackTraceToString())
             }
+            val appLogPath = writeLogToAppCrashDir(logsDir, filename, content)
+            val downloadsExported = exportToDownloads(context, filename, content)
+            Log.e(
+                TAG,
+                "Logged exception to app cache: ${appLogPath ?: "failed"}, " +
+                    "downloads export: ${if (downloadsExported) "ok" else "failed"}"
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to log exception", e)
         }
@@ -144,30 +147,95 @@ object CrashLogger {
             val logsDir = getCrashLogsDir(context)
             if (!logsDir.exists() && !logsDir.mkdirs()) {
                 Log.w(TAG, "Failed to create crash logs directory")
-                return
             }
 
             val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
             val filename = "crash_${timestamp}.log"
-            val file = File(logsDir, filename)
-
-            try {
-                FileWriter(file).use { writer ->
-                    writer.append("=== GRAFIT CRASH LOG ===\n")
-                    writer.append("Timestamp: $timestamp\n")
-                    writer.append("Thread: ${thread.name}\n")
-                    writer.append("Exception: ${throwable::class.simpleName}\n")
-                    writer.append("Message: ${throwable.message}\n")
-                    writer.append("\nFull Stack Trace:\n")
-                    writer.append(throwable.stackTraceToString())
-                }
-                Log.e(TAG, "Crash logged to $filename")
-                trimOldCrashLogs(logsDir)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to write crash log", e)
+            val content = buildString {
+                append("=== GRAFIT CRASH LOG ===\n")
+                append("Timestamp: $timestamp\n")
+                append("Thread: ${thread.name}\n")
+                append("Exception: ${throwable::class.simpleName}\n")
+                append("Message: ${throwable.message}\n")
+                append("\nFull Stack Trace:\n")
+                append(throwable.stackTraceToString())
             }
+            val appLogPath = writeLogToAppCrashDir(logsDir, filename, content)
+            val downloadsExported = exportToDownloads(context, filename, content)
+            Log.e(
+                TAG,
+                "Crash logged to app cache: ${appLogPath ?: "failed"}, " +
+                    "downloads export: ${if (downloadsExported) "ok" else "failed"}"
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to log crash", e)
+        }
+    }
+
+    private fun writeLogToAppCrashDir(logsDir: File, filename: String, content: String): String? {
+        return try {
+            val file = File(logsDir, filename)
+            FileWriter(file).use { writer ->
+                writer.write(content)
+            }
+            trimOldCrashLogs(logsDir)
+            file.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write app crash log", e)
+            null
+        }
+    }
+
+    private fun exportToDownloads(context: Context, filename: String, content: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(
+                        MediaStore.Downloads.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_DOWNLOADS}/$DOWNLOADS_SUBDIR"
+                    )
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return false
+
+                try {
+                    resolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                        writer.write(content)
+                    } ?: run {
+                        resolver.delete(uri, null, null)
+                        return false
+                    }
+                    values.clear()
+                    values.put(MediaStore.Downloads.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                    true
+                } catch (e: Exception) {
+                    resolver.delete(uri, null, null)
+                    throw e
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val downloadsDir =
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val grafitDir = File(downloadsDir, DOWNLOADS_SUBDIR)
+                if (!grafitDir.exists() && !grafitDir.mkdirs()) {
+                    return false
+                }
+
+                val file = File(grafitDir, filename)
+                FileWriter(file).use { writer ->
+                    writer.write(content)
+                }
+                true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to export crash log to Downloads", e)
+            false
         }
     }
 

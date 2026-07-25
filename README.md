@@ -122,6 +122,10 @@ If the app crashes when you first open it, crash logs are automatically written 
 ```
 ~/Android/data/com.webivation.grafit/cache/crashes/
 ```
+and also exported (best effort) to:
+```
+Files app → Downloads/Grafit/
+```
 
 **Via Termux:**
 ```bash
@@ -140,6 +144,28 @@ adb logcat -s CrashLogger,MainActivity,GrafitApplication,DataSyncService
 # Extract crash files
 adb shell run-as com.webivation.grafit cat cache/crashes/crash_*.log
 ```
+
+### Live debug from a Mac over USB
+
+1. On your phone, enable **Developer options** and turn on **USB debugging**.
+2. Install Android platform tools on macOS (if needed):
+   ```bash
+   brew install android-platform-tools
+   ```
+3. Connect the phone via USB and accept the debugging prompt on the phone.
+4. Verify connection:
+   ```bash
+   adb devices
+   ```
+5. Tail live app logs:
+   ```bash
+   adb logcat -v time -s CrashLogger,MainActivity,GrafitApplication,DataSyncService,R02BleManager
+   ```
+6. Reproduce the crash, then pull exported log files:
+   ```bash
+   adb shell ls /sdcard/Download/Grafit
+   adb pull /sdcard/Download/Grafit .
+   ```
 
 ### Testing with Android Emulator
 
