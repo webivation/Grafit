@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
 import com.webivation.grafit.data.MetricDao
 import com.webivation.grafit.ring.RingMetric
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -43,17 +44,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             var dao: MetricDao? = null
             while (isActive) {
-                val count = runCatching {
+                val count = try {
                     val currentDao = dao ?: AppDatabase.getInstance(getApplication()).metricDao().also {
                         dao = it
                     }
                     currentDao.count()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    dao = null
+                    Log.e(TAG, "Failed to read buffered metric count", e)
+                    0
                 }
-                    .onFailure {
-                        dao = null
-                        Log.e(TAG, "Failed to read buffered metric count", it)
-                    }
-                    .getOrDefault(0)
                 _bufferCount.postValue(count)
                 delay(POLL_INTERVAL_MS)
             }
