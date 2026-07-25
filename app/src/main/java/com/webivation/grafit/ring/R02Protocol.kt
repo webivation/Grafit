@@ -94,10 +94,11 @@ object R02Protocol {
                 spO2Percent = data[2].toInt() and 0xFF
             )
             CMD_STEPS_TODAY -> {
-                val steps = ((data[4].toInt() and 0xFF) shl 24) or
-                        ((data[3].toInt() and 0xFF) shl 16) or
+                // Little-endian 32-bit: data[1]=LSB … data[4]=MSB
+                val steps = (data[1].toInt() and 0xFF) or
                         ((data[2].toInt() and 0xFF) shl 8) or
-                        (data[1].toInt() and 0xFF)  // little-endian 32-bit
+                        ((data[3].toInt() and 0xFF) shl 16) or
+                        ((data[4].toInt() and 0xFF) shl 24)
                 RingMetric(steps = steps)
             }
             CMD_BATTERY -> RingMetric(

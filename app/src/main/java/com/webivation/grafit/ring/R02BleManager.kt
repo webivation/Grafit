@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.Executors
 
 /**
  * Manages the BLE lifecycle for an R02 fitness ring: scanning, connecting,
@@ -51,6 +52,7 @@ class R02BleManager(
     val metricChannel = Channel<RingMetric>(capacity = 64)
 
     private val handler = Handler(Looper.getMainLooper())
+    private val pollExecutor = Executors.newSingleThreadExecutor()
     private val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = bluetoothManager?.adapter
 
@@ -95,6 +97,7 @@ class R02BleManager(
 
     fun disconnect() {
         handler.removeCallbacksAndMessages(null)
+        pollExecutor.shutdown()
         gatt?.disconnect()
         gatt?.close()
         gatt = null
@@ -168,9 +171,8 @@ class R02BleManager(
             // Enable notifications
             gatt.setCharacteristicNotification(notifyChar, true)
             val cccd = notifyChar.getDescriptor(R02Protocol.CCCD_UUID)
-            cccd?.let {
-                it.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                gatt.writeDescriptor(it)
+            if (cccd != null) {
+                writeDescriptorCompat(gatt, cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
             }
 
             _connectionState.value = State.CONNECTED
@@ -178,19 +180,7 @@ class R02BleManager(
             schedulePoll()
         }
 
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
-            if (characteristic.uuid == R02Protocol.CHAR_NOTIFY_UUID) {
-                val metric = R02Protocol.parse(characteristic.value ?: return)
-                if (metric.hasData()) {
-                    metricChannel.trySend(metric)
-                }
-            }
-        }
-
-        @Deprecated("Deprecated in API 33 – kept for API < 33 compatibility")
+        // API 33+: preferred non-deprecated overload that receives the value directly.
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
@@ -198,41 +188,88 @@ class R02BleManager(
         ) {
             if (characteristic.uuid == R02Protocol.CHAR_NOTIFY_UUID) {
                 val metric = R02Protocol.parse(value)
-                if (metric.hasData()) {
-                    metricChannel.trySend(metric)
-                }
+                if (metric.hasData()) metricChannel.trySend(metric)
+            }
+        }
+
+        // API < 33: deprecated overload – value must be read from the characteristic.
+        @Suppress("DEPRECATION")
+        @Deprecated(
+            "Deprecated in Android API 33; use the three-parameter overload instead",
+            replaceWith = ReplaceWith("onCharacteristicChanged(gatt, characteristic, characteristic.value)")
+        )
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            if (characteristic.uuid == R02Protocol.CHAR_NOTIFY_UUID) {
+                val bytes = characteristic.value ?: return
+                val metric = R02Protocol.parse(bytes)
+                if (metric.hasData()) metricChannel.trySend(metric)
             }
         }
     }
 
     // -----------------------------------------------------------------------
-    // Poll loop
+    // Poll loop — runs on a background thread to avoid blocking the main looper
     // -----------------------------------------------------------------------
 
     private fun schedulePoll() {
         handler.postDelayed(pollRunnable, pollIntervalMs)
     }
 
-    private val pollRunnable = object : Runnable {
-        override fun run() {
-            pollRing()
-            handler.postDelayed(this, pollIntervalMs)
-        }
+    private val pollRunnable = Runnable {
+        // Dispatch I/O work to the single-thread executor to reuse the thread
+        // across poll cycles and avoid the overhead of creating a new thread each time.
+        pollExecutor.submit { pollRing() }
+        schedulePoll()
     }
 
     @SuppressLint("MissingPermission")
     private fun pollRing() {
         val g = gatt ?: return
         val wc = writeChar ?: return
-        listOf(
+        for (cmd in listOf(
             R02Protocol.CMD_GET_HEART_RATE,
             R02Protocol.CMD_GET_SPO2,
             R02Protocol.CMD_GET_STEPS,
             R02Protocol.CMD_GET_BATTERY
-        ).forEach { cmd ->
-            wc.value = cmd
-            g.writeCharacteristic(wc)
-            Thread.sleep(100) // small gap between commands
+        )) {
+            writeCommand(g, wc, cmd)
+            Thread.sleep(120) // small gap between successive commands
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun writeCommand(
+        gatt: BluetoothGatt,
+        char: BluetoothGattCharacteristic,
+        cmd: ByteArray
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeCharacteristic(
+                char,
+                cmd,
+                BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            )
+        } else {
+            char.value = cmd
+            char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            gatt.writeCharacteristic(char)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun writeDescriptorCompat(
+        gatt: BluetoothGatt,
+        descriptor: BluetoothGattDescriptor,
+        value: ByteArray
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeDescriptor(descriptor, value)
+        } else {
+            descriptor.value = value
+            gatt.writeDescriptor(descriptor)
         }
     }
 

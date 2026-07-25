@@ -43,6 +43,8 @@ class DataSyncService : LifecycleService() {
     private var writer: PrometheusRemoteWriter? = null
 
     private var deviceLabel = "R02"
+    /** Pre-computed once after [initFromPrefs] to avoid repeated string concatenation. */
+    private var commonLabels = "device=$deviceLabel,source=grafit"
 
     override fun onCreate() {
         super.onCreate()
@@ -72,6 +74,7 @@ class DataSyncService : LifecycleService() {
     private fun initFromPrefs() {
         val prefs = Prefs.get(this)
         deviceLabel = prefs.deviceName
+        commonLabels = "device=$deviceLabel,source=grafit"
         writer = if (prefs.endpointUrl.isNotBlank() && prefs.username.isNotBlank()) {
             PrometheusRemoteWriter(prefs.endpointUrl, prefs.username, prefs.apiKey)
         } else null
@@ -98,8 +101,6 @@ class DataSyncService : LifecycleService() {
     // -----------------------------------------------------------------------
     // Metric persistence (ring → buffer)
     // -----------------------------------------------------------------------
-
-    private val commonLabels: String get() = "device=$deviceLabel,source=grafit"
 
     private suspend fun persistMetric(metric: RingMetric) {
         val rows = mutableListOf<BufferedMetric>()
