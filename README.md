@@ -163,8 +163,8 @@ adb shell run-as com.webivation.grafit cat cache/crashes/crash_*.log
    ```
 6. Reproduce the crash, then pull exported log files:
    ```bash
-   adb shell ls /sdcard/Download/Grafit
-   adb pull /sdcard/Download/Grafit .
+   adb shell ls /sdcard/Downloads/Grafit
+   adb pull /sdcard/Downloads/Grafit .
    ```
 
 ### Testing with Android Emulator
