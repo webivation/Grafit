@@ -1,0 +1,87 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# Minimal token permissions: read-only access to repository contents.
+# Upload-artifact only needs no extra permissions; actions write is not required.
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Run unit tests & build debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Java 17 (required by AGP 8.x) with Gradle cache
+      # -----------------------------------------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # -----------------------------------------------------------------------
+      # 3. Android SDK — accept licenses, ensure ANDROID_HOME is set
+      # -----------------------------------------------------------------------
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # -----------------------------------------------------------------------
+      # 4. Write local.properties so AGP can find the SDK
+      # -----------------------------------------------------------------------
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      # -----------------------------------------------------------------------
+      # 5. Gradle permissions
+      # -----------------------------------------------------------------------
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # -----------------------------------------------------------------------
+      # 6. Unit tests (JVM – no emulator needed)
+      # -----------------------------------------------------------------------
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      # -----------------------------------------------------------------------
+      # 7. Upload test results so failures are easy to inspect
+      # -----------------------------------------------------------------------
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
+
+      # -----------------------------------------------------------------------
+      # 8. Assemble debug APK
+      # -----------------------------------------------------------------------
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # -----------------------------------------------------------------------
+      # 9. Upload APK as a downloadable artifact
+      #    Go to Actions → this run → Artifacts → grafit-debug-<N>.zip
+      # -----------------------------------------------------------------------
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: grafit-debug-${{ github.run_number }}
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          if-no-files-found: error

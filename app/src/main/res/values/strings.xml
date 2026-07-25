@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grafit</string>
+    <string name="title_settings">Settings</string>
+
+    <!-- Status labels -->
+    <string name="status_streaming">Streaming to Grafana Cloud</string>
+    <string name="status_stopped">Stopped — tap ▶ to start</string>
+    <string name="label_heart_rate">Heart Rate</string>
+    <string name="label_spo2">SpO₂</string>
+    <string name="label_steps">Steps today</string>
+    <string name="label_temperature">Temperature</string>
+    <string name="label_battery">Battery</string>
+    <string name="label_buffer_count">Buffered metrics: %1$d</string>
+
+    <!-- Value formats -->
+    <string name="value_bpm">%1$d bpm</string>
+    <string name="value_percent">%1$d %%</string>
+    <string name="value_celsius">%.1f °C</string>
+    <string name="value_na">—</string>
+
+    <!-- Errors -->
+    <string name="error_permissions_required">BLE and notification permissions are required.</string>
+    <string name="error_configure_grafana">Please configure Grafana Cloud settings first.</string>
+    <string name="error_positive_number">Enter a positive number.</string>
+
+    <!-- Settings screen -->
+    <string name="pref_header_grafana">Grafana Cloud</string>
+    <string name="pref_key_endpoint_url">endpoint_url</string>
+    <string name="pref_title_endpoint_url">Remote-write endpoint URL</string>
+    <string name="pref_summary_endpoint_url">https://prometheus-prod-XX….grafana.net/api/prom/push</string>
+    <string name="pref_title_username">User ID (numeric)</string>
+    <string name="pref_summary_username">Your Grafana Cloud user ID</string>
+    <string name="pref_title_api_key">API key</string>
+    <string name="pref_summary_api_key">Grafana Cloud API key or password</string>
+
+    <string name="pref_header_ble">Bluetooth / Ring</string>
+    <string name="pref_title_device_name">Device name</string>
+    <string name="pref_summary_device_name">BLE advertised name to scan for (default: R02)</string>
+    <string name="pref_title_poll_interval">Poll interval (ms)</string>
+    <string name="pref_summary_poll_interval">How often to request readings from the ring</string>
+
+    <string name="pref_header_sync">Sync &amp; Buffer</string>
+    <string name="pref_title_flush_interval">Flush interval (ms)</string>
+    <string name="pref_summary_flush_interval">How often to send buffered metrics to Grafana Cloud</string>
+    <string name="pref_title_buffer_max_rows">Buffer size (rows)</string>
+    <string name="pref_summary_buffer_max_rows">Max metrics kept locally during outages</string>
+</resources>

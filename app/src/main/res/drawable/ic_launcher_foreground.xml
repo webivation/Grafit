@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer circle -->
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M54,54m-54,0a54,54 0,1 1,108 0a54,54 0,1 1,-108 0" />
+    <!-- Ring symbol -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,22c-17.67,0 -32,14.33 -32,32s14.33,32 32,32 32,-14.33 32,-32 -14.33,-32 -32,-32z
+                          M54,78c-13.25,0 -24,-10.75 -24,-24s10.75,-24 24,-24 24,10.75 24,24 -10.75,24 -24,24z
+                          M54,38c-8.84,0 -16,7.16 -16,16s7.16,16 16,16 16,-7.16 16,-16 -7.16,-16 -16,-16z
+                          M54,62c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z" />
+</vector>
