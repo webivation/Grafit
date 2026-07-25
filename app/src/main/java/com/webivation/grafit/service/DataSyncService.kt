@@ -91,18 +91,13 @@ class DataSyncService : LifecycleService() {
 
         // Collect BLE metrics
         lifecycleScope.launch {
-            try {
-                for (metric in bleManager.metricChannel) {
-                    try {
-                        persistMetric(metric)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error persisting metric from ring", e)
-                        CrashLogger.logException(this@DataSyncService, e, TAG)
-                    }
+            for (metric in bleManager.metricChannel) {
+                try {
+                    persistMetric(metric)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error persisting metric from ring", e)
+                    CrashLogger.logException(this@DataSyncService, e, TAG)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "BLE metric collection failed", e)
-                CrashLogger.logException(this@DataSyncService, e, TAG)
             }
         }
 

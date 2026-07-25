@@ -23,7 +23,10 @@ object CrashLogger {
      */
     fun init(context: Context) {
         val logsDir = getCrashLogsDir(context)
-        logsDir.mkdirs()
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            Log.e(TAG, "Failed to create crash logs directory during init")
+            return
+        }
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -40,7 +43,10 @@ object CrashLogger {
      */
     fun logException(context: Context, exception: Throwable, tag: String? = null) {
         val logsDir = getCrashLogsDir(context)
-        if (!logsDir.exists()) logsDir.mkdirs()
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            Log.e(TAG, "Failed to create crash logs directory")
+            return
+        }
 
         val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
         val filename = "error_${timestamp}.log"
@@ -52,18 +58,10 @@ object CrashLogger {
                 writer.append("Tag: ${tag ?: "N/A"}\n")
                 writer.append("Exception: ${exception::class.simpleName}\n")
                 writer.append("Message: ${exception.message}\n")
-                writer.append("\nStackTrace:\n")
-                exception.stackTrace.forEach { element ->
-                    writer.append("  at $element\n")
-                }
-                if (exception.cause != null) {
-                    writer.append("\nCaused by: ${exception.cause}\n")
-                    exception.cause?.stackTrace?.forEach { element ->
-                        writer.append("  at $element\n")
-                    }
-                }
+                writer.append("\nStack Trace:\n")
+                writer.append(exception.stackTraceToString())
             }
-            Log.d(TAG, "Logged exception to $filename")
+            Log.e(TAG, "Logged exception to $filename")
             trimOldCrashLogs(logsDir)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to log exception", e)
@@ -83,7 +81,10 @@ object CrashLogger {
 
     private fun logCrash(context: Context, thread: Thread, throwable: Throwable) {
         val logsDir = getCrashLogsDir(context)
-        logsDir.mkdirs()
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            Log.e(TAG, "Failed to create crash logs directory")
+            return
+        }
 
         val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
         val filename = "crash_${timestamp}.log"
@@ -100,6 +101,7 @@ object CrashLogger {
                 writer.append(throwable.stackTraceToString())
             }
             Log.e(TAG, "Crash logged to $filename")
+            trimOldCrashLogs(logsDir)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to log crash", e)
         }

@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -226,7 +227,7 @@ class R02BleManager(
                 pollRing()
             } catch (e: Exception) {
                 Log.e(TAG, "Poll ring error", e)
-                com.webivation.grafit.util.CrashLogger.logException(context, e, TAG)
+                CrashLogger.logException(context, e, TAG)
                 // Don't crash the polling loop - just log and continue
             }
         }

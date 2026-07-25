@@ -30,12 +30,13 @@ interface MetricDao {
      */
     @Query(
         """
+        WITH counted AS (SELECT COUNT(*) as cnt FROM buffered_metrics)
         DELETE FROM buffered_metrics
         WHERE id IN (
             SELECT id FROM buffered_metrics
             ORDER BY timestampMs ASC
-            LIMIT CASE WHEN (SELECT COUNT(*) FROM buffered_metrics) > :maxRows
-                       THEN (SELECT COUNT(*) FROM buffered_metrics) - :maxRows
+            LIMIT CASE WHEN (SELECT cnt FROM counted) > :maxRows
+                       THEN (SELECT cnt FROM counted) - :maxRows
                        ELSE 0 END
         )
         """
