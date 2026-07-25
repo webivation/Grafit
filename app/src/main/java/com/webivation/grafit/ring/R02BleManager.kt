@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -221,7 +222,15 @@ class R02BleManager(
     private val pollRunnable = Runnable {
         // Dispatch I/O work to the single-thread executor to reuse the thread
         // across poll cycles and avoid the overhead of creating a new thread each time.
-        pollExecutor.submit { pollRing() }
+        pollExecutor.submit {
+            try {
+                pollRing()
+            } catch (e: Exception) {
+                Log.e(TAG, "Poll ring error", e)
+                CrashLogger.logException(context, e, TAG)
+                // Don't crash the polling loop - just log and continue
+            }
+        }
         schedulePoll()
     }
 

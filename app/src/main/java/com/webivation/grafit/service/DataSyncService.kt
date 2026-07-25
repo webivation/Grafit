@@ -20,6 +20,7 @@ import com.webivation.grafit.network.PrometheusSample
 import com.webivation.grafit.network.PrometheusTimeSeries
 import com.webivation.grafit.ring.R02BleManager
 import com.webivation.grafit.ring.RingMetric
+import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -90,8 +91,20 @@ class DataSyncService : LifecycleService() {
 
         // Collect BLE metrics
         lifecycleScope.launch {
+            var consecutiveErrors = 0
             for (metric in bleManager.metricChannel) {
-                persistMetric(metric)
+                try {
+                    persistMetric(metric)
+                    consecutiveErrors = 0
+                } catch (e: Exception) {
+                    consecutiveErrors++
+                    Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
+                    CrashLogger.logException(this@DataSyncService, e, TAG)
+                    if (consecutiveErrors >= MAX_METRIC_COLLECTION_ERRORS) {
+                        Log.e(TAG, "Exiting metric collection due to repeated persistence failures")
+                        break
+                    }
+                }
             }
         }
 
@@ -160,9 +173,30 @@ class DataSyncService : LifecycleService() {
 
     private fun startFlushLoop() {
         lifecycleScope.launch(Dispatchers.IO) {
+            var consecutiveErrors = 0
             while (isActive) {
-                delay(Prefs.get(this@DataSyncService).flushIntervalMs)
-                flush()
+                try {
+                    val baseInterval = Prefs.get(this@DataSyncService).flushIntervalMs
+                    // Exponential backoff with base 2: delay = baseInterval * 2^min(consecutiveErrors, 16)
+                    // Capped at MAX_BACKOFF_DELAY_MS (5 minutes) to prevent excessively long delays
+                    val delayMs = if (consecutiveErrors == 0) {
+                        baseInterval
+                    } else {
+                        val cappedErrors = minOf(consecutiveErrors, 16)  // Prevent overflow: 2^16 ~ 65k
+                        minOf(baseInterval * (1L shl cappedErrors), MAX_BACKOFF_DELAY_MS)
+                    }
+                    delay(delayMs)
+                    flush()
+                    consecutiveErrors = 0
+                } catch (e: Exception) {
+                    consecutiveErrors++
+                    Log.e(TAG, "Flush loop error (attempt $consecutiveErrors)", e)
+                    CrashLogger.logException(this@DataSyncService, e, TAG)
+                    if (consecutiveErrors >= MAX_FLUSH_ERRORS) {
+                        Log.e(TAG, "Exiting flush loop due to repeated failures")
+                        break
+                    }
+                }
             }
         }
     }
@@ -241,6 +275,9 @@ class DataSyncService : LifecycleService() {
         private const val CHANNEL_ID = "grafit_sync"
         private const val NOTIFICATION_ID = 1001
         private const val FLUSH_BATCH_SIZE = 200
+        private const val MAX_METRIC_COLLECTION_ERRORS = 5
+        private const val MAX_FLUSH_ERRORS = 10
+        private const val MAX_BACKOFF_DELAY_MS = 5 * 60 * 1000L  // 5 minutes
 
         fun start(context: Context) {
             val intent = Intent(context, DataSyncService::class.java)
