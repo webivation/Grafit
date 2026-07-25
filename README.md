@@ -114,6 +114,46 @@ All metrics carry `device` and `source` labels (e.g. `device="R02",source="grafi
 
 ---
 
+## Troubleshooting
+
+### App crashes at startup
+
+If the app crashes when you first open it, crash logs are automatically written to:
+```
+~/Android/data/com.webivation.grafit/cache/crashes/
+```
+
+**Via Termux:**
+```bash
+# List all crash logs
+ls ~/Android/data/com.webivation.grafit/cache/crashes/
+
+# View a crash log
+cat ~/Android/data/com.webivation.grafit/cache/crashes/crash_*.log
+```
+
+**Via adb:**
+```bash
+# View live logs
+adb logcat -s CrashLogger,MainActivity,GrafitApplication,DataSyncService
+
+# Extract crash files
+adb shell run-as com.webivation.grafit cat cache/crashes/crash_*.log
+```
+
+### Testing with Android Emulator
+
+The app has been tested on both physical devices and emulators. To test with an emulator:
+
+1. Create an Android Virtual Device (API 26+) in Android Studio
+2. Start the emulator
+3. Build and run: `./gradlew installDebug`
+4. Grant permissions when prompted
+5. Configure Grafana Cloud credentials in Settings
+6. Check crash logs in `~/Android/data/com.webivation.grafit/cache/crashes/` if needed
+
+---
+
 ## License
 
 [LICENSE](LICENSE)

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
@@ -16,6 +17,7 @@ import com.webivation.grafit.databinding.ActivityMainBinding
 import com.webivation.grafit.ring.RingMetric
 import com.webivation.grafit.service.DataSyncService
 import com.webivation.grafit.service.Prefs
+import com.webivation.grafit.util.CrashLogger
 import com.webivation.grafit.viewmodel.MainViewModel
 
 /**
@@ -33,25 +35,45 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
+        try {
+            binding = ActivityMainBinding.inflate(layoutInflater)
+            setContentView(binding.root)
+            setSupportActionBar(binding.toolbar)
 
-        observeViewModel()
-        binding.fabToggleStream.setOnClickListener { toggleStreaming() }
+            observeViewModel()
+            binding.fabToggleStream.setOnClickListener { toggleStreaming() }
+            Log.i(TAG, "MainActivity created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in MainActivity.onCreate()", e)
+            CrashLogger.logException(this, e, TAG)
+            Toast.makeText(this, "Error initializing app: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
+        try {
+            menuInflater.inflate(R.menu.menu_main, menu)
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating options menu", e)
+            CrashLogger.logException(this, e, TAG)
+            return false
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_settings) {
-            startActivity(Intent(this, SettingsActivity::class.java))
-            return true
+        try {
+            if (item.itemId == R.id.action_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                return true
+            }
+            return super.onOptionsItemSelected(item)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling menu item", e)
+            CrashLogger.logException(this, e, TAG)
+            return false
         }
-        return super.onOptionsItemSelected(item)
     }
 
     // -----------------------------------------------------------------------
@@ -59,17 +81,36 @@ class MainActivity : AppCompatActivity() {
     // -----------------------------------------------------------------------
 
     private fun observeViewModel() {
-        vm.latestMetric.observe(this) { metric -> bindMetric(metric) }
-        vm.bufferCount.observe(this) { count ->
-            binding.tvBufferCount.text = getString(R.string.label_buffer_count, count)
-        }
-        vm.isStreaming.observe(this) { streaming ->
-            binding.fabToggleStream.setImageResource(
-                if (streaming) R.drawable.ic_stop else R.drawable.ic_play
-            )
-            binding.tvStatus.text = getString(
-                if (streaming) R.string.status_streaming else R.string.status_stopped
-            )
+        try {
+            vm.latestMetric.observe(this) { metric -> 
+                try {
+                    bindMetric(metric)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error binding metric", e)
+                }
+            }
+            vm.bufferCount.observe(this) { count ->
+                try {
+                    binding.tvBufferCount.text = getString(R.string.label_buffer_count, count)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating buffer count", e)
+                }
+            }
+            vm.isStreaming.observe(this) { streaming ->
+                try {
+                    binding.fabToggleStream.setImageResource(
+                        if (streaming) R.drawable.ic_stop else R.drawable.ic_play
+                    )
+                    binding.tvStatus.text = getString(
+                        if (streaming) R.string.status_streaming else R.string.status_stopped
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating streaming status", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up ViewModel observers", e)
+            CrashLogger.logException(this, e, TAG)
         }
     }
 
@@ -92,58 +133,84 @@ class MainActivity : AppCompatActivity() {
     // -----------------------------------------------------------------------
 
     private fun toggleStreaming() {
-        if (vm.isStreaming.value == true) {
-            DataSyncService.stop(this)
-            vm.setStreaming(false)
-        } else {
-            requestPermissionsThenStart()
+        try {
+            if (vm.isStreaming.value == true) {
+                DataSyncService.stop(this)
+                vm.setStreaming(false)
+            } else {
+                requestPermissionsThenStart()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error toggling stream", e)
+            CrashLogger.logException(this, e, TAG)
+            Toast.makeText(this, "Error toggling stream: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        val allGranted = results.values.all { it }
-        if (allGranted) {
-            startStreaming()
-        } else {
-            Toast.makeText(this, R.string.error_permissions_required, Toast.LENGTH_LONG).show()
+        try {
+            val allGranted = results.values.all { it }
+            if (allGranted) {
+                startStreaming()
+            } else {
+                Toast.makeText(this, R.string.error_permissions_required, Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in permission launcher", e)
+            CrashLogger.logException(this, e, TAG)
         }
     }
 
     private fun requestPermissionsThenStart() {
-        val prefs = Prefs.get(this)
-        if (prefs.endpointUrl.isBlank() || prefs.username.isBlank() || prefs.apiKey.isBlank()) {
-            Toast.makeText(this, R.string.error_configure_grafana, Toast.LENGTH_LONG).show()
-            startActivity(Intent(this, SettingsActivity::class.java))
-            return
-        }
+        try {
+            val prefs = Prefs.get(this)
+            if (prefs.endpointUrl.isBlank() || prefs.username.isBlank() || prefs.apiKey.isBlank()) {
+                Toast.makeText(this, R.string.error_configure_grafana, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, SettingsActivity::class.java))
+                return
+            }
 
-        val required = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                add(Manifest.permission.BLUETOOTH_SCAN)
-                add(Manifest.permission.BLUETOOTH_CONNECT)
+            val required = buildList {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    add(Manifest.permission.BLUETOOTH_SCAN)
+                    add(Manifest.permission.BLUETOOTH_CONNECT)
+                } else {
+                    add(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+
+            val missing = required.filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
+
+            if (missing.isEmpty()) {
+                startStreaming()
             } else {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                permissionLauncher.launch(missing.toTypedArray())
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
-        val missing = required.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missing.isEmpty()) {
-            startStreaming()
-        } else {
-            permissionLauncher.launch(missing.toTypedArray())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting permissions", e)
+            CrashLogger.logException(this, e, TAG)
         }
     }
 
     private fun startStreaming() {
-        DataSyncService.start(this)
-        vm.setStreaming(true)
+        try {
+            DataSyncService.start(this)
+            vm.setStreaming(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting stream", e)
+            CrashLogger.logException(this, e, TAG)
+            Toast.makeText(this, "Error starting stream: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }
