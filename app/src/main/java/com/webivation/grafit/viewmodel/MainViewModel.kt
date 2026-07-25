@@ -15,9 +15,8 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val app = application
     private val dao by lazy {
-        AppDatabase.getInstance(app).metricDao()
+        AppDatabase.getInstance(application).metricDao()
     }
 
     // Latest ring readings for display
