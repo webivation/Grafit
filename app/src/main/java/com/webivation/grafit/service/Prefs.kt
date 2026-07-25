@@ -46,8 +46,8 @@ class Prefs private constructor(private val sp: SharedPreferences) {
 
     /** How frequently (ms) the ring is polled for new readings. */
     var pollIntervalMs: Long
-        get() = sp.getLong(KEY_POLL_INTERVAL_MS, DEFAULT_POLL_INTERVAL_MS)
-        set(v) = sp.edit { putLong(KEY_POLL_INTERVAL_MS, v) }
+        get() = getLongCompat(KEY_POLL_INTERVAL_MS, DEFAULT_POLL_INTERVAL_MS)
+        set(v) = sp.edit { putString(KEY_POLL_INTERVAL_MS, v.toString()) }
 
     // -----------------------------------------------------------------------
     // Buffer / sync settings
@@ -55,13 +55,61 @@ class Prefs private constructor(private val sp: SharedPreferences) {
 
     /** How frequently (ms) the local buffer is flushed to Grafana Cloud. */
     var flushIntervalMs: Long
-        get() = sp.getLong(KEY_FLUSH_INTERVAL_MS, DEFAULT_FLUSH_INTERVAL_MS)
-        set(v) = sp.edit { putLong(KEY_FLUSH_INTERVAL_MS, v) }
+        get() = getLongCompat(KEY_FLUSH_INTERVAL_MS, DEFAULT_FLUSH_INTERVAL_MS)
+        set(v) = sp.edit { putString(KEY_FLUSH_INTERVAL_MS, v.toString()) }
 
     /** Maximum number of metric rows kept in the local buffer. */
     var bufferMaxRows: Int
-        get() = sp.getInt(KEY_BUFFER_MAX_ROWS, DEFAULT_BUFFER_MAX_ROWS)
-        set(v) = sp.edit { putInt(KEY_BUFFER_MAX_ROWS, v) }
+        get() = getIntCompat(KEY_BUFFER_MAX_ROWS, DEFAULT_BUFFER_MAX_ROWS)
+        set(v) = sp.edit { putString(KEY_BUFFER_MAX_ROWS, v.toString()) }
+
+    private fun getLongCompat(key: String, default: Long): Long {
+        val asString = try {
+            sp.getString(key, null)
+        } catch (_: ClassCastException) {
+            null
+        }
+        if (asString != null) return asString.toLongOrNull() ?: default
+
+        return try {
+            sp.getLong(key, default)
+        } catch (_: ClassCastException) {
+            when (val value = sp.all[key]) {
+                is Long -> value
+                is Int -> value.toLong()
+                is Float -> value.toLong()
+                is Double -> value.toLong()
+                is Short -> value.toLong()
+                is Byte -> value.toLong()
+                is String -> value.toLongOrNull() ?: default
+                else -> default
+            }
+        }
+    }
+
+    private fun getIntCompat(key: String, default: Int): Int {
+        val asString = try {
+            sp.getString(key, null)
+        } catch (_: ClassCastException) {
+            null
+        }
+        if (asString != null) return asString.toIntOrNull() ?: default
+
+        return try {
+            sp.getInt(key, default)
+        } catch (_: ClassCastException) {
+            when (val value = sp.all[key]) {
+                is Int -> value
+                is Long -> value.toInt()
+                is Float -> value.toInt()
+                is Double -> value.toInt()
+                is Short -> value.toInt()
+                is Byte -> value.toInt()
+                is String -> value.toIntOrNull() ?: default
+                else -> default
+            }
+        }
+    }
 
     companion object {
         private const val PREFS_NAME = "grafit_prefs"
