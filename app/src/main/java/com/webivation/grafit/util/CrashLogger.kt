@@ -49,7 +49,7 @@ object CrashLogger {
         }
 
         val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
-        val filename = "error_${timestamp}.log"
+        val filename = "exception_${timestamp}.log"
         val file = File(logsDir, filename)
 
         try {

@@ -177,11 +177,13 @@ class DataSyncService : LifecycleService() {
             while (isActive) {
                 try {
                     val baseInterval = Prefs.get(this@DataSyncService).flushIntervalMs
-                    // Exponential backoff: double the delay on each error, capped at MAX_BACKOFF_DELAY_MS
+                    // Exponential backoff with base 2: delay = baseInterval * 2^min(consecutiveErrors, 16)
+                    // Capped at MAX_BACKOFF_DELAY_MS (5 minutes) to prevent excessively long delays
                     val delayMs = if (consecutiveErrors == 0) {
                         baseInterval
                     } else {
-                        minOf(baseInterval * (1L shl consecutiveErrors), MAX_BACKOFF_DELAY_MS)
+                        val cappedErrors = minOf(consecutiveErrors, 16)  // Prevent overflow: 2^16 ~ 65k
+                        minOf(baseInterval * (1L shl cappedErrors), MAX_BACKOFF_DELAY_MS)
                     }
                     delay(delayMs)
                     flush()
