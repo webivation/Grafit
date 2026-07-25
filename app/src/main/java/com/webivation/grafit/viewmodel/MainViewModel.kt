@@ -44,7 +44,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             var dao: MetricDao? = null
             while (isActive) {
                 val count = runCatching {
-                    val currentDao = dao ?: AppDatabase.getInstance(application).metricDao().also {
+                    val currentDao = dao ?: AppDatabase.getInstance(getApplication()).metricDao().also {
                         dao = it
                     }
                     currentDao.count()
