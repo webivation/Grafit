@@ -49,13 +49,20 @@ class DataSyncService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("Connecting to ring…"))
+        try {
+            createNotificationChannel()
+            startForeground(NOTIFICATION_ID, buildNotification("Connecting to ring…"))
 
-        db = AppDatabase.getInstance(this)
-        initFromPrefs()
-        startBle()
-        startFlushLoop()
+            db = AppDatabase.getInstance(this)
+            initFromPrefs()
+            startBle()
+            startFlushLoop()
+            Log.i(TAG, "DataSyncService created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in DataSyncService.onCreate()", e)
+            CrashLogger.logException(this, e, TAG)
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

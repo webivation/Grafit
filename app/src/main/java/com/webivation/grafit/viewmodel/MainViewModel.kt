@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
 import com.webivation.grafit.data.MetricDao
 import com.webivation.grafit.ring.RingMetric
+import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -28,7 +29,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isStreaming: LiveData<Boolean> = _isStreaming
 
     init {
-        startBufferMonitor()
+        try {
+            startBufferMonitor()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing buffer monitor", e)
+            CrashLogger.logException(getApplication(), e, TAG)
+        }
     }
 
     fun setStreaming(running: Boolean) {
@@ -57,7 +63,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     0
                 }
                 _bufferCount.postValue(count)
-                delay(POLL_INTERVAL_MS)
+                try {
+                    delay(POLL_INTERVAL_MS)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in buffer monitor delay", e)
+                    delay(POLL_INTERVAL_MS)
+                }
             }
         }
     }
