@@ -92,7 +92,6 @@ class DataSyncService : LifecycleService() {
         val prefs = Prefs.get(this)
         bleManager = R02BleManager(
             context = this,
-            deviceName = prefs.deviceName,
             pollIntervalMs = prefs.pollIntervalMs
         )
 
