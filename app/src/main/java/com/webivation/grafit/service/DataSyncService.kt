@@ -90,8 +90,18 @@ class DataSyncService : LifecycleService() {
 
         // Collect BLE metrics
         lifecycleScope.launch {
-            for (metric in bleManager.metricChannel) {
-                persistMetric(metric)
+            try {
+                for (metric in bleManager.metricChannel) {
+                    try {
+                        persistMetric(metric)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error persisting metric from ring", e)
+                        com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "BLE metric collection failed", e)
+                com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
             }
         }
 
@@ -161,8 +171,13 @@ class DataSyncService : LifecycleService() {
     private fun startFlushLoop() {
         lifecycleScope.launch(Dispatchers.IO) {
             while (isActive) {
-                delay(Prefs.get(this@DataSyncService).flushIntervalMs)
-                flush()
+                try {
+                    delay(Prefs.get(this@DataSyncService).flushIntervalMs)
+                    flush()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Flush loop error", e)
+                    com.webivation.grafit.util.CrashLogger.logException(this@DataSyncService, e, TAG)
+                }
             }
         }
     }

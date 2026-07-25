@@ -34,7 +34,9 @@ interface MetricDao {
         WHERE id IN (
             SELECT id FROM buffered_metrics
             ORDER BY timestampMs ASC
-            LIMIT MAX(0, (SELECT COUNT(*) FROM buffered_metrics) - :maxRows)
+            LIMIT CASE WHEN (SELECT COUNT(*) FROM buffered_metrics) > :maxRows
+                       THEN (SELECT COUNT(*) FROM buffered_metrics) - :maxRows
+                       ELSE 0 END
         )
         """
     )
