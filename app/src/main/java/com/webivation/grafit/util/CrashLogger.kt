@@ -16,6 +16,7 @@ object CrashLogger {
     private const val TAG = "CrashLogger"
     private const val CRASH_DIR = "crashes"
     private const val MAX_CRASH_FILES = 10
+    private const val TIMESTAMP_FORMAT = "yyyy-MM-dd_HH-mm-ss-SSS"
 
     /**
      * Initialize crash logging. Call this once in Application.onCreate().
@@ -48,7 +49,7 @@ object CrashLogger {
             return
         }
 
-        val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
+        val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
         val filename = "exception_${timestamp}.log"
         val file = File(logsDir, filename)
 
@@ -86,7 +87,7 @@ object CrashLogger {
             return
         }
 
-        val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
+        val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
         val filename = "crash_${timestamp}.log"
         val file = File(logsDir, filename)
 

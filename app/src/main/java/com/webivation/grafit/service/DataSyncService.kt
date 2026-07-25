@@ -100,7 +100,7 @@ class DataSyncService : LifecycleService() {
                     consecutiveErrors++
                     Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
-                    if (consecutiveErrors > MAX_METRIC_COLLECTION_ERRORS) {
+                    if (consecutiveErrors >= MAX_METRIC_COLLECTION_ERRORS) {
                         Log.e(TAG, "Exiting metric collection due to repeated persistence failures")
                         break
                     }
@@ -192,7 +192,7 @@ class DataSyncService : LifecycleService() {
                     consecutiveErrors++
                     Log.e(TAG, "Flush loop error (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
-                    if (consecutiveErrors > MAX_FLUSH_ERRORS) {
+                    if (consecutiveErrors >= MAX_FLUSH_ERRORS) {
                         Log.e(TAG, "Exiting flush loop due to repeated failures")
                         break
                     }
