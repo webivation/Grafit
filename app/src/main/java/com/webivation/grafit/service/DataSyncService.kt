@@ -14,13 +14,13 @@ import com.webivation.grafit.MainActivity
 import com.webivation.grafit.R
 import com.webivation.grafit.data.AppDatabase
 import com.webivation.grafit.data.BufferedMetric
+import com.webivation.grafit.health.HealthConnectSource
+import com.webivation.grafit.health.HealthMetric
+import com.webivation.grafit.health.LiveHealthMetric
 import com.webivation.grafit.network.PrometheusLabel
 import com.webivation.grafit.network.PrometheusRemoteWriter
 import com.webivation.grafit.network.PrometheusSample
 import com.webivation.grafit.network.PrometheusTimeSeries
-import com.webivation.grafit.ring.LiveRingMetric
-import com.webivation.grafit.ring.R02BleManager
-import com.webivation.grafit.ring.RingMetric
 import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +30,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Foreground service that:
- *  1. Maintains a BLE connection to the R02 ring via [R02BleManager].
- *  2. Converts incoming [RingMetric] readings to Prometheus time-series.
+ *  1. Periodically reads heart rate/steps from Health Connect (written there
+ *     by the ring's companion app) via [HealthConnectSource].
+ *  2. Converts new readings to Prometheus time-series.
  *  3. Tries to flush metrics to Grafana Cloud via [PrometheusRemoteWriter].
  *  4. On failure, persists metrics to the local Room buffer ([AppDatabase])
  *     and retries on the next flush cycle.
@@ -39,7 +40,7 @@ import kotlinx.coroutines.launch
  */
 class DataSyncService : LifecycleService() {
 
-    private lateinit var bleManager: R02BleManager
+    private lateinit var healthConnectSource: HealthConnectSource
     private lateinit var db: AppDatabase
 
     // Created lazily after reading SharedPreferences
@@ -53,11 +54,12 @@ class DataSyncService : LifecycleService() {
         super.onCreate()
         try {
             createNotificationChannel()
-            startForeground(NOTIFICATION_ID, buildNotification("Connecting to ring…"))
+            startForeground(NOTIFICATION_ID, buildNotification("Reading from Health Connect…"))
 
             db = AppDatabase.getInstance(this)
             initFromPrefs()
-            startBle()
+            healthConnectSource = HealthConnectSource(this)
+            startHealthConnectPolling()
             startFlushLoop()
             Log.i(TAG, "DataSyncService created successfully")
         } catch (e: Exception) {
@@ -70,11 +72,6 @@ class DataSyncService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         return START_STICKY
-    }
-
-    override fun onDestroy() {
-        bleManager.disconnect()
-        super.onDestroy()
     }
 
     // -----------------------------------------------------------------------
@@ -90,85 +87,78 @@ class DataSyncService : LifecycleService() {
         } else null
     }
 
-    private fun startBle() {
-        val prefs = Prefs.get(this)
-        bleManager = R02BleManager(
-            context = this,
-            pollIntervalMs = prefs.pollIntervalMs
-        )
+    // -----------------------------------------------------------------------
+    // Health Connect polling
+    // -----------------------------------------------------------------------
 
-        // Collect BLE metrics
-        lifecycleScope.launch {
+    private fun startHealthConnectPolling() {
+        lifecycleScope.launch(Dispatchers.IO) {
             var consecutiveErrors = 0
-            for (metric in bleManager.metricChannel) {
-                LiveRingMetric.update(metric)
+            while (isActive) {
                 try {
-                    persistMetric(metric)
+                    pollHealthConnect()
                     consecutiveErrors = 0
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     consecutiveErrors++
-                    Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
+                    Log.e(TAG, "Error reading Health Connect (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
                     if (consecutiveErrors >= MAX_METRIC_COLLECTION_ERRORS) {
-                        Log.e(TAG, "Exiting metric collection due to repeated persistence failures")
+                        Log.e(TAG, "Exiting Health Connect polling due to repeated failures")
                         break
                     }
                 }
+                delay(Prefs.get(this@DataSyncService).pollIntervalMs)
             }
         }
+    }
 
-        bleManager.startScan()
+    private suspend fun pollHealthConnect() {
+        val prefs = Prefs.get(this)
+        val token = prefs.healthConnectChangesToken
+            ?: healthConnectSource.getInitialChangesToken().also { prefs.healthConnectChangesToken = it }
+
+        val changes = try {
+            healthConnectSource.readChanges(token)
+        } catch (e: IllegalStateException) {
+            // Token too old / invalidated by Health Connect - restart from a fresh token.
+            Log.w(TAG, "Health Connect changes token expired, requesting a fresh one", e)
+            val freshToken = healthConnectSource.getInitialChangesToken()
+            prefs.healthConnectChangesToken = freshToken
+            return
+        }
+
+        changes.metrics.lastOrNull { it.hasData() }?.let { LiveHealthMetric.update(it) }
+        persistMetrics(changes.metrics)
+        prefs.healthConnectChangesToken = changes.nextToken
     }
 
     // -----------------------------------------------------------------------
-    // Metric persistence (ring → buffer)
+    // Metric persistence (Health Connect → buffer)
     // -----------------------------------------------------------------------
 
-    private suspend fun persistMetric(metric: RingMetric) {
+    private suspend fun persistMetrics(metrics: List<HealthMetric>) {
         val rows = mutableListOf<BufferedMetric>()
-        val ts = metric.timestampMs
 
-        if (metric.heartRateBpm != RingMetric.UNAVAILABLE) {
-            rows += BufferedMetric(
-                metricName = "grafit_heart_rate_bpm",
-                labels = commonLabels,
-                value = metric.heartRateBpm.toDouble(),
-                timestampMs = ts
-            )
-        }
-        if (metric.spO2Percent != RingMetric.UNAVAILABLE) {
-            rows += BufferedMetric(
-                metricName = "grafit_spo2_percent",
-                labels = commonLabels,
-                value = metric.spO2Percent.toDouble(),
-                timestampMs = ts
-            )
-        }
-        if (metric.steps != RingMetric.UNAVAILABLE) {
-            rows += BufferedMetric(
-                metricName = "grafit_steps_total",
-                labels = commonLabels,
-                value = metric.steps.toDouble(),
-                timestampMs = ts
-            )
-        }
-        if (metric.temperatureCentidegrees != RingMetric.UNAVAILABLE) {
-            rows += BufferedMetric(
-                metricName = "grafit_temperature_celsius",
-                labels = commonLabels,
-                value = metric.temperatureCentidegrees / 100.0,
-                timestampMs = ts
-            )
-        }
-        if (metric.batteryPercent != RingMetric.UNAVAILABLE) {
-            rows += BufferedMetric(
-                metricName = "grafit_battery_percent",
-                labels = commonLabels,
-                value = metric.batteryPercent.toDouble(),
-                timestampMs = ts
-            )
+        for (metric in metrics) {
+            val ts = metric.timestampMs
+            if (metric.heartRateBpm != HealthMetric.UNAVAILABLE) {
+                rows += BufferedMetric(
+                    metricName = "grafit_heart_rate_bpm",
+                    labels = commonLabels,
+                    value = metric.heartRateBpm.toDouble(),
+                    timestampMs = ts
+                )
+            }
+            if (metric.steps != HealthMetric.UNAVAILABLE) {
+                rows += BufferedMetric(
+                    metricName = "grafit_steps_total",
+                    labels = commonLabels,
+                    value = metric.steps.toDouble(),
+                    timestampMs = ts
+                )
+            }
         }
 
         if (rows.isNotEmpty()) {
@@ -259,7 +249,7 @@ class DataSyncService : LifecycleService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID, "Grafit sync", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "R02 ring data streaming" }
+            ).apply { description = "Health Connect data streaming" }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }

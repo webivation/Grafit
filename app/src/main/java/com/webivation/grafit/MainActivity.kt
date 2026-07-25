@@ -13,16 +13,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.webivation.grafit.databinding.ActivityMainBinding
-import com.webivation.grafit.ring.RingMetric
+import com.webivation.grafit.health.HealthConnectSource
+import com.webivation.grafit.health.HealthMetric
 import com.webivation.grafit.service.DataSyncService
 import com.webivation.grafit.service.Prefs
 import com.webivation.grafit.util.CrashLogger
 import com.webivation.grafit.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 /**
- * Main screen: shows live ring readings, buffer depth, streaming toggle,
- * and a link to Settings.
+ * Main screen: shows the latest Health Connect readings, buffer depth,
+ * streaming toggle, and a link to Settings.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -42,6 +45,9 @@ class MainActivity : AppCompatActivity() {
 
             observeViewModel()
             binding.fabToggleStream.setOnClickListener { toggleStreaming() }
+            binding.fabSettings.setOnClickListener {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
             Log.i(TAG, "MainActivity created successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error in MainActivity.onCreate()", e)
@@ -82,7 +88,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         try {
-            vm.latestMetric.observe(this) { metric -> 
+            vm.latestMetric.observe(this) { metric ->
                 try {
                     bindMetric(metric)
                 } catch (e: Exception) {
@@ -114,18 +120,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun bindMetric(m: RingMetric) {
+    private fun bindMetric(m: HealthMetric) {
         val na = getString(R.string.value_na)
-        binding.tvHeartRate.text = if (m.heartRateBpm != RingMetric.UNAVAILABLE)
+        binding.tvHeartRate.text = if (m.heartRateBpm != HealthMetric.UNAVAILABLE)
             getString(R.string.value_bpm, m.heartRateBpm) else na
-        binding.tvSpO2.text = if (m.spO2Percent != RingMetric.UNAVAILABLE)
-            getString(R.string.value_percent, m.spO2Percent) else na
-        binding.tvSteps.text = if (m.steps != RingMetric.UNAVAILABLE)
+        binding.tvSteps.text = if (m.steps != HealthMetric.UNAVAILABLE)
             m.steps.toString() else na
-        binding.tvTemperature.text = if (m.temperatureCentidegrees != RingMetric.UNAVAILABLE)
-            getString(R.string.value_celsius, m.temperatureCentidegrees / 100.0) else na
-        binding.tvBattery.text = if (m.batteryPercent != RingMetric.UNAVAILABLE)
-            getString(R.string.value_percent, m.batteryPercent) else na
     }
 
     // -----------------------------------------------------------------------
@@ -147,18 +147,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val permissionLauncher = registerForActivityResult(
+    private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         try {
-            val allGranted = results.values.all { it }
-            if (allGranted) {
-                startStreaming()
+            if (results.values.all { it }) {
+                requestHealthConnectPermissionsThenStart()
             } else {
                 Toast.makeText(this, R.string.error_permissions_required, Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in permission launcher", e)
+            CrashLogger.logException(this, e, TAG)
+        }
+    }
+
+    private val healthConnectPermissionLauncher = registerForActivityResult(
+        HealthConnectSource.permissionRequestContract()
+    ) { granted ->
+        try {
+            if (granted.containsAll(HealthConnectSource.PERMISSIONS)) {
+                startStreaming()
+            } else {
+                Toast.makeText(this, R.string.error_health_connect_permissions_required, Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in Health Connect permission launcher", e)
             CrashLogger.logException(this, e, TAG)
         }
     }
@@ -172,30 +186,43 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
+            if (!HealthConnectSource.isAvailable(this)) {
+                Toast.makeText(this, R.string.error_health_connect_unavailable, Toast.LENGTH_LONG).show()
+                return
+            }
+
             val required = buildList {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    add(Manifest.permission.BLUETOOTH_SCAN)
-                    add(Manifest.permission.BLUETOOTH_CONNECT)
-                } else {
-                    add(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     add(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
-
             val missing = required.filter {
                 ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
             }
 
             if (missing.isEmpty()) {
-                startStreaming()
+                requestHealthConnectPermissionsThenStart()
             } else {
-                permissionLauncher.launch(missing.toTypedArray())
+                notificationPermissionLauncher.launch(missing.toTypedArray())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error requesting permissions", e)
             CrashLogger.logException(this, e, TAG)
+        }
+    }
+
+    private fun requestHealthConnectPermissionsThenStart() {
+        lifecycleScope.launch {
+            try {
+                if (HealthConnectSource.hasAllPermissions(this@MainActivity)) {
+                    startStreaming()
+                } else {
+                    healthConnectPermissionLauncher.launch(HealthConnectSource.PERMISSIONS)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking Health Connect permissions", e)
+                CrashLogger.logException(this@MainActivity, e, TAG)
+            }
         }
     }
 

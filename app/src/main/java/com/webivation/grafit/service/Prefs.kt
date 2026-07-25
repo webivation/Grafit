@@ -37,15 +37,15 @@ class Prefs private constructor(private val sp: SharedPreferences) {
         set(v) = sp.edit { putString(KEY_API_KEY, v) }
 
     // -----------------------------------------------------------------------
-    // BLE settings
+    // Ring / device label
     // -----------------------------------------------------------------------
 
-    /** Advertised BLE device name to scan for (default "R02"). */
+    /** Prometheus "device" label value for this ring's metrics (default "R02"). */
     var deviceName: String
         get() = sp.getString(KEY_DEVICE_NAME, DEFAULT_DEVICE_NAME) ?: DEFAULT_DEVICE_NAME
         set(v) = sp.edit { putString(KEY_DEVICE_NAME, v) }
 
-    /** How frequently (ms) the ring is polled for new readings. */
+    /** How frequently (ms) Health Connect is polled for new readings. */
     var pollIntervalMs: Long
         get() = getLongCompat(KEY_POLL_INTERVAL_MS, DEFAULT_POLL_INTERVAL_MS)
         set(v) = sp.edit { putString(KEY_POLL_INTERVAL_MS, v.toString()) }
@@ -63,6 +63,17 @@ class Prefs private constructor(private val sp: SharedPreferences) {
     var bufferMaxRows: Int
         get() = getIntCompat(KEY_BUFFER_MAX_ROWS, DEFAULT_BUFFER_MAX_ROWS)
         set(v) = sp.edit { putString(KEY_BUFFER_MAX_ROWS, v.toString()) }
+
+    /**
+     * Health Connect Changes API token marking how far Grafit has already read,
+     * so a service restart resumes from where it left off instead of re-reading
+     * (and re-flushing) old samples. Null until the first successful poll —
+     * companion apps like QRing can backfill records stamped with data
+     * timestamps in the past, so a wall-clock cursor isn't reliable here.
+     */
+    var healthConnectChangesToken: String?
+        get() = sp.getString(KEY_HEALTH_CONNECT_CHANGES_TOKEN, null)
+        set(v) = sp.edit { putString(KEY_HEALTH_CONNECT_CHANGES_TOKEN, v) }
 
     private fun getLongCompat(key: String, default: Long): Long {
         val asString = try {
@@ -122,9 +133,10 @@ class Prefs private constructor(private val sp: SharedPreferences) {
         const val KEY_POLL_INTERVAL_MS  = "poll_interval_ms"
         const val KEY_FLUSH_INTERVAL_MS = "flush_interval_ms"
         const val KEY_BUFFER_MAX_ROWS   = "buffer_max_rows"
+        const val KEY_HEALTH_CONNECT_CHANGES_TOKEN = "health_connect_changes_token"
 
         const val DEFAULT_DEVICE_NAME       = "R02"
-        const val DEFAULT_POLL_INTERVAL_MS  = 5_000L
+        const val DEFAULT_POLL_INTERVAL_MS  = 60_000L
         const val DEFAULT_FLUSH_INTERVAL_MS = 15_000L
         const val DEFAULT_BUFFER_MAX_ROWS   = 10_000
 

@@ -1,6 +1,5 @@
 package com.webivation.grafit.network
 
-import org.iq80.snappy.Snappy
 import java.io.ByteArrayOutputStream
 
 // ---------------------------------------------------------------------------
@@ -47,7 +46,7 @@ object PrometheusEncoder {
      */
     fun encode(timeSeries: List<PrometheusTimeSeries>): ByteArray {
         val proto = encodeWriteRequest(timeSeries)
-        return Snappy.compress(proto)
+        return PureSnappy.compress(proto)
     }
 
     // -----------------------------------------------------------------------

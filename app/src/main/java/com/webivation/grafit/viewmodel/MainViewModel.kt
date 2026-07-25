@@ -8,8 +8,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
 import com.webivation.grafit.data.MetricDao
-import com.webivation.grafit.ring.LiveRingMetric
-import com.webivation.grafit.ring.RingMetric
+import com.webivation.grafit.health.HealthMetric
+import com.webivation.grafit.health.LiveHealthMetric
 import com.webivation.grafit.util.CrashLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,9 +19,9 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Latest ring readings for display
-    private val _latestMetric = MutableLiveData<RingMetric>()
-    val latestMetric: LiveData<RingMetric> = _latestMetric
+    // Latest Health Connect readings for display
+    private val _latestMetric = MutableLiveData<HealthMetric>()
+    val latestMetric: LiveData<HealthMetric> = _latestMetric
 
     private val _bufferCount = MutableLiveData(0)
     val bufferCount: LiveData<Int> = _bufferCount
@@ -44,10 +44,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Mirrors [LiveRingMetric], the ring's real-time readings, onto the UI-facing LiveData. */
+    /** Mirrors [LiveHealthMetric], the latest Health Connect reading, onto the UI-facing LiveData. */
     private fun observeLiveMetric() {
         viewModelScope.launch {
-            LiveRingMetric.latest.collect { metric ->
+            LiveHealthMetric.latest.collect { metric ->
                 if (metric != null) postLatestMetric(metric)
             }
         }
@@ -57,7 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isStreaming.value = running
     }
 
-    fun postLatestMetric(metric: RingMetric) {
+    fun postLatestMetric(metric: HealthMetric) {
         _latestMetric.postValue(metric)
     }
 

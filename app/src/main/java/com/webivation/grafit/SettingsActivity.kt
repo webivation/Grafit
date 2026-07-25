@@ -13,7 +13,7 @@ import com.webivation.grafit.util.CrashLogger
 
 /**
  * Lightweight settings screen built with [PreferenceFragmentCompat] for
- * Grafana Cloud credentials, BLE device name, and sync tuning parameters.
+ * Grafana Cloud credentials, ring device label, and sync tuning parameters.
  */
 class SettingsActivity : AppCompatActivity() {
 

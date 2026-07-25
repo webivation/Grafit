@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace 'com.webivation.grafit'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.webivation.grafit"
@@ -58,13 +58,17 @@ dependencies {
     // OkHttp – Prometheus remote write
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
-    // Snappy (pure Java) – protobuf frame compression
-    implementation 'org.iq80.snappy:snappy:0.5'
-
     // Preferences UI
     implementation 'androidx.preference:preference-ktx:1.2.1'
 
+    // Health Connect – reads heart rate/steps written by the ring's companion app
+    implementation 'androidx.health.connect:connect-client:1.1.0'
+
     testImplementation 'junit:junit:4.13.2'
+    // Test-only: verifies PureSnappy's output round-trips through a real Snappy
+    // decoder. Never shipped — org.iq80.snappy crashes on Android's ART runtime
+    // (NoSuchFieldError on sun.misc.Unsafe), which is why PureSnappy exists.
+    testImplementation 'org.iq80.snappy:snappy:0.5'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
