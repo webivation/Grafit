@@ -91,12 +91,19 @@ class DataSyncService : LifecycleService() {
 
         // Collect BLE metrics
         lifecycleScope.launch {
+            var consecutiveErrors = 0
             for (metric in bleManager.metricChannel) {
                 try {
                     persistMetric(metric)
+                    consecutiveErrors = 0
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error persisting metric from ring", e)
+                    consecutiveErrors++
+                    Log.e(TAG, "Error persisting metric from ring (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
+                    if (consecutiveErrors > 5) {
+                        Log.e(TAG, "Too many consecutive persistence errors, breaking metric collection loop")
+                        break
+                    }
                 }
             }
         }
@@ -166,13 +173,27 @@ class DataSyncService : LifecycleService() {
 
     private fun startFlushLoop() {
         lifecycleScope.launch(Dispatchers.IO) {
+            var consecutiveErrors = 0
             while (isActive) {
                 try {
-                    delay(Prefs.get(this@DataSyncService).flushIntervalMs)
+                    val baseInterval = Prefs.get(this@DataSyncService).flushIntervalMs
+                    // Exponential backoff: double the delay on each error, capped at 5 minutes
+                    val delayMs = if (consecutiveErrors == 0) {
+                        baseInterval
+                    } else {
+                        minOf(baseInterval * (1L shl consecutiveErrors), 5 * 60 * 1000L)
+                    }
+                    delay(delayMs)
                     flush()
+                    consecutiveErrors = 0
                 } catch (e: Exception) {
-                    Log.e(TAG, "Flush loop error", e)
+                    consecutiveErrors++
+                    Log.e(TAG, "Flush loop error (attempt $consecutiveErrors)", e)
                     CrashLogger.logException(this@DataSyncService, e, TAG)
+                    if (consecutiveErrors > 10) {
+                        Log.e(TAG, "Too many consecutive flush errors, stopping flush loop")
+                        break
+                    }
                 }
             }
         }
