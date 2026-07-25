@@ -111,6 +111,7 @@ All metrics carry `device` and `source` labels (e.g. `device="R02",source="grafi
 | `INTERNET` | Sending metrics to Grafana Cloud |
 | `FOREGROUND_SERVICE` | Background streaming service |
 | `POST_NOTIFICATIONS` (API 33+) | Persistent service notification |
+| `WRITE_EXTERNAL_STORAGE` (API 23-28) | Exporting crash logs to public `Downloads/Grafit` on legacy Android |
 
 ---
 
