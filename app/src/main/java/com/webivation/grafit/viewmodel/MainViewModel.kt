@@ -7,6 +7,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.webivation.grafit.data.AppDatabase
+import com.webivation.grafit.data.MetricDao
 import com.webivation.grafit.ring.RingMetric
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -40,11 +41,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Polls the DB row-count every [POLL_INTERVAL_MS] so the UI stays current. */
     private fun startBufferMonitor() {
         viewModelScope.launch(Dispatchers.IO) {
+            var dao: MetricDao? = null
             while (isActive) {
                 val count = runCatching {
-                    AppDatabase.getInstance(application).metricDao().count()
+                    val currentDao = dao ?: AppDatabase.getInstance(application).metricDao().also {
+                        dao = it
+                    }
+                    currentDao.count()
                 }
-                    .onFailure { Log.e(TAG, "Failed to read buffered metric count", it) }
+                    .onFailure {
+                        dao = null
+                        Log.e(TAG, "Failed to read buffered metric count", it)
+                    }
                     .getOrDefault(0)
                 _bufferCount.postValue(count)
                 delay(POLL_INTERVAL_MS)
