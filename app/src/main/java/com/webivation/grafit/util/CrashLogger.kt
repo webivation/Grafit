@@ -92,10 +92,6 @@ object CrashLogger {
     fun logException(context: Context, exception: Throwable, tag: String? = null) {
         try {
             val logsDir = getCrashLogsDir(context)
-            if (!logsDir.exists() && !logsDir.mkdirs()) {
-                Log.w(TAG, "Failed to create crash logs directory")
-            }
-
             val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
             val filename = "exception_${timestamp}.log"
             val content = buildString {
@@ -106,7 +102,12 @@ object CrashLogger {
                 append("\nStack Trace:\n")
                 append(exception.stackTraceToString())
             }
-            val appLogPath = writeLogToAppCrashDir(logsDir, filename, content)
+            val appLogPath = if (logsDir.exists() || logsDir.mkdirs()) {
+                writeLogToAppCrashDir(logsDir, filename, content)
+            } else {
+                Log.w(TAG, "Failed to create crash logs directory")
+                null
+            }
             val downloadsExported = exportToDownloads(context, filename, content)
             Log.e(
                 TAG,
@@ -145,10 +146,6 @@ object CrashLogger {
     private fun logCrash(context: Context, thread: Thread, throwable: Throwable) {
         try {
             val logsDir = getCrashLogsDir(context)
-            if (!logsDir.exists() && !logsDir.mkdirs()) {
-                Log.w(TAG, "Failed to create crash logs directory")
-            }
-
             val timestamp = SimpleDateFormat(TIMESTAMP_FORMAT, Locale.US).format(Date())
             val filename = "crash_${timestamp}.log"
             val content = buildString {
@@ -160,7 +157,12 @@ object CrashLogger {
                 append("\nFull Stack Trace:\n")
                 append(throwable.stackTraceToString())
             }
-            val appLogPath = writeLogToAppCrashDir(logsDir, filename, content)
+            val appLogPath = if (logsDir.exists() || logsDir.mkdirs()) {
+                writeLogToAppCrashDir(logsDir, filename, content)
+            } else {
+                Log.w(TAG, "Failed to create crash logs directory")
+                null
+            }
             val downloadsExported = exportToDownloads(context, filename, content)
             Log.e(
                 TAG,
